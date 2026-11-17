@@ -1,0 +1,93 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis_broker
+    restart: always
+    ports:              
+      - "6379:6379"     
+  unoserver:
+    build: .
+    image: tool-nest-backend:latest
+    container_name: unoserver
+    restart: always
+    command: /usr/bin/python3 -m unoserver.server --interface 0.0.0.0 --port 2003
+    mem_limit: 2g
+
+  api-server:
+    build: .
+    image: tool-nest-backend:latest
+    container_name: python_utility_api
+    restart: always
+    command: gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 600
+    mem_limit: 3g          # hard host-RAM backstop: OOM-kill + restart this one
+    ports:                 # container instead of freezing the whole machine
+      - "8000:8000"
+    volumes:
+      - ai-model-cache:/home/appuser/.cache
+      - temp-storage:/tmp
+    environment:
+      - ENV=production
+      - U2NET_HOME=/home/appuser/.cache/u2net
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - UNOSERVER_HOST=unoserver
+      - UNOSERVER_PORT=2003
+    depends_on:
+      - redis
+      - unoserver
+
+  celery-worker-office:
+    build: .
+    image: tool-nest-backend:latest
+    container_name: celery_worker_office
+    restart: always
+    command: celery -A celery_app.celery worker --loglevel=info -Q office -c 2 -n office@%h
+    mem_limit: 2g
+    volumes:
+      - temp-storage:/tmp
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - UNOSERVER_HOST=unoserver
+      - UNOSERVER_PORT=2003
+    depends_on:
+      - redis
+      - unoserver
+
+  celery-worker-default:
+    build: .
+    image: tool-nest-backend:latest
+    container_name: celery_worker_default
+    restart: always
+    command: celery -A celery_app.celery worker --loglevel=info -Q default -c 4 -n default@%h
+    mem_limit: 3g
+    volumes:
+      - ai-model-cache:/home/appuser/.cache
+      - temp-storage:/tmp
+    environment:
+      - ENV=production
+      - U2NET_HOME=/home/appuser/.cache/u2net
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - UNOSERVER_HOST=unoserver
+      - UNOSERVER_PORT=2003
+    depends_on:
+      - redis
+      - unoserver
+
+  celery-beat:
+    build: .
+    image: tool-nest-backend:latest
+    container_name: celery_beat
+    restart: always 
+    command: celery -A celery_app.celery beat --loglevel=info
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - celery-worker-default
+
+volumes:
+  ai-model-cache:
+  temp-storage:

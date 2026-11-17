@@ -1,0 +1,3 @@
+lucide-react (Icons Library)
+framer-motion (Animation Library)
+react-router-dom (Routing Library)

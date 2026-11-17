@@ -1,0 +1,40 @@
+# Render Blueprint — Option A (single combined service) on Free Tier
+services:
+  - type: web
+    name: tool-nest-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: ENV
+        value: production
+      - key: U2NET_HOME
+        value: /home/appuser/.cache/u2net
+      # 1 worker & 1 concurrency to stay within Render Free tier 512MB RAM
+      - key: GUNICORN_WORKERS
+        value: "1"
+      - key: CELERY_CONCURRENCY
+        value: "1"
+      - key: CELERY_MAX_MEMORY_PER_CHILD_KB
+        value: "150000"
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: keyvalue
+          name: tool-nest-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: keyvalue
+          name: tool-nest-redis
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        value: "*"
+
+  - type: keyvalue
+    name: tool-nest-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []

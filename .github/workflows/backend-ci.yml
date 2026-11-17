@@ -1,0 +1,45 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['backend/**']
+  pull_request:
+    branches: [main, develop]
+    paths: ['backend/**']
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run: 
+        working-directory: backend
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with: 
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice poppler-utils ghostscript libemail-outlook-message-perl default-jre ffmpeg calibre tesseract-ocr imagemagick
+
+      - name: Install Python Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff pytest pytest-cov httpx2
+
+      - name: Lint with Ruff
+        run: ruff check .
+
+      - name: Run Tests and Coverage
+        run: pytest --cov=routers --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Build Docker Image
+        run: docker build -t tool-nest-backend:latest .
+
